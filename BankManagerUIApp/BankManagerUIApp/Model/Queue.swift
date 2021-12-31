@@ -11,7 +11,7 @@ class Queue<T> {
         if isEmpty {
             head = node
         } else {
-            tail?.next = node
+            tail?.link(to: node)
         }
         tail = node
     }
@@ -32,12 +32,20 @@ class Queue<T> {
 }
 
 extension Queue {
-    private class Node<S> {
-        var value: S
-        var next: Node?
+    class Node<S> {
+        let value: S
+        private(set) var next: Node?
         
         init(_ value: S) {
             self.value = value
+        }
+        
+        func link(to nextNode: Node) {
+            next = nextNode
+        }
+        
+        func unlink() {
+            next = nil
         }
     }
 }

@@ -1,129 +1,127 @@
 import Foundation
 
 class Bank {
-    enum Service: String, CaseIterable, CustomStringConvertible {
-        case deposit
-        case loan
+    weak var delegate: BankUIDisplayable?
+    
+    private var currentClientNumber = 0
+    private var isRunning = false
+    private var elapsedServiceTime = 0.0
+    private var timer: Timer?
+    private let newClients = Queue<Client>()
+    
+    private let depositSemaphore = DispatchSemaphore(value: 2)
+    private let loanSemaphore = DispatchSemaphore(value: 1)
+    private let depositDispatchQueue = DispatchQueue(label: "depositDispatchQueue")
+    private let loanDispatchQueue = DispatchQueue(label: "loanDispatchQueue")
+    private let group = DispatchGroup()
+
+    func run() {
+        if isRunning {
+            processAllServicesForNewClients()
+        } else {
+            startBankingSerivce()
+        }
+    }
+    
+    func addNewClients(numberOfClients: Int) {
+        for _ in (1...numberOfClients) {
+            guard let service = Bank.Service.allCases.randomElement() else {
+                return
+            }
+            self.currentClientNumber += 1
+            let client = Client(waitingNumber: self.currentClientNumber, service: service)
+            newClients.enqueue(client)
+            delegate?.addToWaitingQueue(client: client)
+        }
+    }
+}
+
+//MARK: Banking Service Private Methods
+extension Bank {
+    private func startBankingSerivce() {
+        isRunning = true
+        fireTimer()
+        processAllServicesForNewClients()
+        group.notify(queue: DispatchQueue.global()) {
+            self.isRunning = false
+            self.invalidateTimer()
+        }
+    }
+
+    private func processAllServicesForNewClients() {
+        while let client = newClients.dequeue() {
+            let queue = { () -> DispatchQueue in
+                switch client.service {
+                case .deposit:
+                    return depositDispatchQueue
+                case .loan:
+                    return loanDispatchQueue
+                }
+            }()
+            
+            let semaphore = { () -> DispatchSemaphore in
+                switch client.service {
+                case .deposit:
+                    return depositSemaphore
+                case .loan:
+                    return loanSemaphore
+                }
+            }()
+            
+            processServiceAsync(queue: queue, semaphore: semaphore, client: client)
+        }
+    }
+    
+    private func processServiceAsync(queue: DispatchQueue, semaphore: DispatchSemaphore, client: Client) {
+        queue.async(group: group) {
+            semaphore.wait()
+            DispatchQueue.main.sync {
+                self.delegate?.addToProcessingQueue(client: client)
+                self.delegate?.removeFromWaitingQueue(client: client)
+            }
+            
+            DispatchQueue.global().async(group: self.group) {
+                Thread.sleep(forTimeInterval: client.service.timeForCompletion)
+                DispatchQueue.main.sync {
+                    self.delegate?.removeFromProcessingQueue(client: client)
+                }
+                semaphore.signal()
+            }
+        }
+    }
+}
+
+//MARK: Timer methods
+extension Bank {
+    private func fireTimer() {
+        timer = Timer(timeInterval: 0.013, repeats: true) { _ in
+            self.elapsedServiceTime += 0.013
+            self.delegate?.updateServiceTime(serviceTime: self.elapsedServiceTime)
+        }
+        guard let timer = timer else {
+            return
+        }
+        RunLoop.current.add(timer, forMode: .common)
+    }
+    
+    private func invalidateTimer() {
+        timer?.invalidate()
+    }
+}
+
+//MARK: Service Type
+extension Bank {
+    enum Service: String, CaseIterable {
+        case deposit = "예금"
+        case loan = "대출"
         
-        var processingTime: Double {
+        var timeForCompletion: Double {
             switch self {
             case .deposit:
                 return 0.7
             case .loan:
                 return 1.1
             }
-        }
-        
-        var description: String {
-            switch self {
-            case .deposit:
-                return "예금"
-            case .loan:
-                return "대출"
-            }
-        }
-    }
-    
-    weak var delegate: BankDelegate?
-    private let clients = Queue<Client>()
-    private var numberOfClients = 0
-    private var isProcessing = false
-    private var elapsedServiceTime = 0.0
-    private var timer: Timer?
-    
-    private let depositSemaphore: DispatchSemaphore
-    private let loanSemaphore: DispatchSemaphore
-    private let depositDispatchQueue = DispatchQueue(label: Service.deposit.rawValue)
-    private let loanDispatchQueue = DispatchQueue(label: Service.loan.rawValue)
-    private let group = DispatchGroup()
-    
-    init(numberOfDepositBankTellers: Int, numberOfLoanBankTellers: Int) {
-        self.depositSemaphore = DispatchSemaphore(value: numberOfDepositBankTellers)
-        self.loanSemaphore = DispatchSemaphore(value: numberOfLoanBankTellers)
-    }
-    
-    convenience init() {
-        self.init(numberOfDepositBankTellers: 2, numberOfLoanBankTellers: 1)
-    }
-    
-    func startBankingService() {
-        guard isProcessing == false else {
-            processAllServices()
-            return
-        }
-        isProcessing = true
-        
-        timer = Timer(timeInterval: 0.013, repeats: true) { _ in
-            self.elapsedServiceTime += 0.013
-            self.delegate?.updateServiceTimeLabel(serviceTime: self.elapsedServiceTime)
-        }
-        guard let timer = timer else {
-            return
-        }
-        RunLoop.current.add(timer, forMode: .common)
-        
-        processAllServices()
-        group.notify(queue: DispatchQueue.global()) {
-            self.isProcessing = false
-            self.timer?.invalidate()
-        }
-    }
-    
-    func addClientsToQueue(by numberOfClients: Int) {
-        (1...numberOfClients).forEach {
-            let client = Client(waitingNumber: self.numberOfClients + $0)
-            clients.enqueue(client)
-            delegate?.addWaitingClient(client: client)
-        }
-        self.numberOfClients += numberOfClients
-    }
-    
-    func invalidateTimer() {
-        timer?.invalidate()
-    }
-    
-    private func processAllServices() {
-        while let client = clients.dequeue() {
-            switch client.business {
-            case .deposit:
-                depositDispatchQueue.async(group: group) {
-                    self.depositSemaphore.wait()
-                    DispatchQueue.main.sync {
-                        self.delegate?.addProcessingClient(client: client)
-                        self.delegate?.removeWaitingClient(client: client)
-                    }
-                    self.processDepositService(to: client, group: self.group)
-                }
-            case .loan:
-                loanDispatchQueue.async(group: group) {
-                    self.loanSemaphore.wait()
-                    DispatchQueue.main.sync {
-                        self.delegate?.addProcessingClient(client: client)
-                        self.delegate?.removeWaitingClient(client: client)
-                    }
-                    self.processLoanService(to: client, group: self.group)
-                }
-            }
-        }
-    }
-
-    private func processDepositService(to client: Client, group: DispatchGroup) {
-        DispatchQueue.global().async(group: group) {
-            Thread.sleep(forTimeInterval: Service.deposit.processingTime)
-            DispatchQueue.main.sync {
-                self.delegate?.removeProcessingClient(client: client)
-            }
-            self.depositSemaphore.signal()
-        }
-    }
-    
-    private func processLoanService(to client: Client, group: DispatchGroup) {
-        DispatchQueue.global().async(group: group) {
-            Thread.sleep(forTimeInterval: Service.loan.processingTime)
-            DispatchQueue.main.sync {
-                self.delegate?.removeProcessingClient(client: client)
-            }
-            self.loanSemaphore.signal()
         }
     }
 }

@@ -1,4 +1,8 @@
 struct Client {    
     let waitingNumber: Int
-    let business = Bank.Service.allCases.randomElement() ?? .deposit
+    let service: Bank.Service
+    
+    var descriptionForLabel: String {
+        return "\(waitingNumber) - \(service.rawValue)"
+    }
 }
