@@ -20,7 +20,7 @@ class Bank {
     init(delegate: BankUIDisplayable) {
         self.delegate = delegate
     }
-    
+
     func run() {
         if isRunning {
             processAllServicesForNewClients()
@@ -48,9 +48,9 @@ extension Bank {
         isRunning = true
         fireTimer()
         processAllServicesForNewClients()
-        group.notify(queue: DispatchQueue.global()) {
-            self.isRunning = false
-            self.invalidateTimer()
+        group.notify(queue: DispatchQueue.global()) { [weak self] in
+            self?.isRunning = false
+            self?.invalidateTimer()
         }
     }
 
@@ -79,17 +79,19 @@ extension Bank {
     }
     
     private func processServiceAsync(queue: DispatchQueue, semaphore: DispatchSemaphore, client: Client) {
-        queue.async(group: group) {
+        //MARK: 초기화 버튼에 의해 self가 해제되므로, semaphore.signal()이 실행될 수 있도록 group에 대한 직접참조를 확보
+        let group = group
+        queue.async(group: group) { [weak self] in
             semaphore.wait()
             DispatchQueue.main.sync {
-                self.delegate?.addToProcessingQueue(client: client)
-                self.delegate?.removeFromWaitingQueue(client: client)
+                self?.delegate?.addToProcessingQueue(client: client)
+                self?.delegate?.removeFromWaitingQueue(client: client)
             }
             
-            DispatchQueue.global().async(group: self.group) {
+            DispatchQueue.global().async(group: group) {
                 Thread.sleep(forTimeInterval: client.service.timeForCompletion)
                 DispatchQueue.main.sync {
-                    self.delegate?.removeFromProcessingQueue(client: client)
+                    self?.delegate?.removeFromProcessingQueue(client: client)
                 }
                 semaphore.signal()
             }
@@ -100,10 +102,14 @@ extension Bank {
 //MARK: Timer methods
 extension Bank {
     private func fireTimer() {
-        timer = Timer(timeInterval: 0.013, repeats: true) { _ in
-            self.elapsedServiceTime += 0.013
-            self.delegate?.updateServiceTime(serviceTime: self.elapsedServiceTime)
+        timer = Timer(timeInterval: 0.013, repeats: true) { [weak self] _ in
+            self?.elapsedServiceTime += 0.013
+            guard let elapsedServiceTime = self?.elapsedServiceTime else {
+                return
+            }
+            self?.delegate?.updateServiceTime(serviceTime: elapsedServiceTime)
         }
+        
         guard let timer = timer else {
             return
         }

@@ -50,12 +50,7 @@ class MainViewController: UIViewController {
         bank?.run()
     }
     
-    @objc private func resetAll() {
-        //MARK: Bank 인스턴스를 새로 만들더라도 비동기 작업과 DispatchGroup의 참조에 의해 기존의 Bank 인스턴스가 해제되지 않음
-        //따라서 비동기 작업들이 기존 Bank 인스턴스의 delegate 프로퍼티에 저장된 뷰컨의 참조를 타고 UI를 변경할 수 있음
-        //기존 Bank 인스턴스의 delegate 프로퍼티를 nil로 만들어줌으로써 UI 변경 통로 차단
-        bank?.delegate = nil
-        
+    @objc private func resetAll() {  
         bank = Bank(delegate: self)
         
         mainStackView.removeFromSuperview()
