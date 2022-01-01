@@ -109,7 +109,14 @@ class Bank {
                 self?.delegate?.addToProcessingQueue(client: client)
                 self?.delegate?.removeFromWaitingQueue(client: client)
             }
-            ...
+            DispatchQueue.global().async(group: group) {
+                Thread.sleep(forTimeInterval: client.service.timeForCompletion)
+                DispatchQueue.main.sync {
+                    self?.delegate?.removeFromProcessingQueue(client: client)
+                }
+                semaphore.signal()
+            }
+	    ...
 }
 
 class MainViewController: UIViewController {
