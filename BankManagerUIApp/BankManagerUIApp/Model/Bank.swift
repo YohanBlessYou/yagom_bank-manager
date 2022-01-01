@@ -15,6 +15,12 @@ class Bank {
     private let loanDispatchQueue = DispatchQueue(label: "loanDispatchQueue")
     private let group = DispatchGroup()
 
+    init() { }
+    
+    init(delegate: BankUIDisplayable) {
+        self.delegate = delegate
+    }
+    
     func run() {
         if isRunning {
             processAllServicesForNewClients()

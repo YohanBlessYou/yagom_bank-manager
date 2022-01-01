@@ -25,8 +25,7 @@ class MainViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        bank = Bank()
-        bank?.delegate = self
+        bank = Bank(delegate: self)
         
         buildAllUIComponents()
         configureButtonActions()
@@ -57,8 +56,7 @@ class MainViewController: UIViewController {
         //기존 Bank 인스턴스의 delegate 프로퍼티를 nil로 만들어줌으로써 UI 변경 통로 차단
         bank?.delegate = nil
         
-        bank = Bank()
-        bank?.delegate = self
+        bank = Bank(delegate: self)
         
         mainStackView.removeFromSuperview()
         buildAllUIComponents()
