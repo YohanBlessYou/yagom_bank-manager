@@ -87,29 +87,29 @@ UIView를 상속받는 `CustomView` 타입을 정의하고 UI 설정을 CustomVi
 
 <img src="https://user-images.githubusercontent.com/39155090/147845012-8fb99a94-d6d1-4273-ae0e-8e0c67b51241.gif" width="30%">
 
-#### ✅ 해결방법 - STEP1. Bank 인스턴스 해제
+#### ✅ 해결방법 - STEP1. Bank 인스턴스 해제/재생성
 - 비동기 작업을 직접적으로 취소하는게 아닌, UI 업데이트 작업이 뷰에 적용되지 않도록 할 방법 모색
 - 비동기 작업이 `self`(Bank 인스턴스)를 타고 UI 업데이트를 하므로 self가 메모리 해제되면 UI업데이트를 하지 못할 것으로 판단
 - 초기화 버튼이 눌릴 시, Bank 인스턴스에 대한 강한 참조가 모두 해제되도록 처리
     - 뷰컨의 프로퍼티 `bank`에 새로운 인스턴스 할당
     - 타이머를 비롯한 비동기 작업 클로저에서 self에 대한 캡처를 weak로 변경
 
-#### ✅ 해결방법 - STEP2. 나머지 GCD 프로퍼티는 강한 참조 유지
-- 세마포어를 사용하므로 비동기 작업이 완료되어 스레드가 해제될 수 있도록 처리 
-- self를 제외한 GCD 관련 프로퍼티(DispatchQueue, Group, Semaphore)는 강한 참조 유지
+#### ✅ 해결방법 - STEP2. GCD 인스턴스는 해제되지 않도록 처리
+- 초기화 버튼을 누르는 시점에, GCD 인스턴스들은 비동기 작업들이 현재 사용 중이므로 메모리를 해제시키면 예기치 못한 에러를 유발할 가능성이 있습니다. (특히, 현재 코드에서 세마포어를 weak로 캡처하면 semaphore.wait() 중이던 비동기 작업에 의해 런타임 에러가 발생합니다)
+- self가 해제되더라도 GCD 관련 프로퍼티(DispatchQueue, Group, Semaphore)는 해제되지 않도록, 파라미터로 전달하여 상수화하거나 별도의 상수에 할당하여 강한 참조를 확보합니다
     
 ```swift
 class Bank {
     private func processServiceAsync(queue: DispatchQueue, semaphore: DispatchSemaphore, client: Client) {
-        //MARK: 초기화 버튼에 의해 self가 해제되므로, semaphore.signal()이 실행될 수 있도록 self.group에 대한 직접적인 참조를 확보
+        //MARK: 초기화 버튼에 의해 self가 해제되더라도, 내부의 global().async 작업이 group에 등록될 수 있도록 group에 대한 직접참조를 확보
         let group = group
-	queue.async(group: group) { [weak self] in
+        queue.async(group: group) { [weak self] in
             semaphore.wait()
             DispatchQueue.main.sync {
                 self?.delegate?.addToProcessingQueue(client: client)
                 self?.delegate?.removeFromWaitingQueue(client: client)
             }
-	    ...
+            ...
 }
 
 class MainViewController: UIViewController {

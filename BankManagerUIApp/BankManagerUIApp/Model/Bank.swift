@@ -34,8 +34,8 @@ class Bank {
             guard let service = Bank.Service.allCases.randomElement() else {
                 return
             }
-            self.currentClientNumber += 1
-            let client = Client(waitingNumber: self.currentClientNumber, service: service)
+            currentClientNumber += 1
+            let client = Client(waitingNumber: currentClientNumber, service: service)
             newClients.enqueue(client)
             delegate?.addToWaitingQueue(client: client)
         }
@@ -79,7 +79,7 @@ extension Bank {
     }
     
     private func processServiceAsync(queue: DispatchQueue, semaphore: DispatchSemaphore, client: Client) {
-        //MARK: 초기화 버튼에 의해 self가 해제되므로, semaphore.signal()이 실행될 수 있도록 group에 대한 직접참조를 확보
+        //MARK: 초기화 버튼에 의해 self가 해제되더라도, 내부의 global().async 작업이 group에 등록될 수 있도록 group에 대한 직접참조를 확보
         let group = group
         queue.async(group: group) { [weak self] in
             semaphore.wait()
