@@ -11,10 +11,10 @@
 ---
 
 ## 📝 Project Info.
-- `Project Copyright` : Yagom Academy
-- `Contributor` : yohan, aCafela, hobak
-- `Period` : 21.12.20 ~ 21.12.31 (2 weeks)
-- `Tech. keyword`
+- `Contributor` : yohan, aCafela, hobak 
+- `협업방식` : 페어 프로그래밍 (commit 단위로 돌아가며 작성)
+- `기간` : 21.12.20 ~ 21.12.31 (2 weeks)
+- `키워드`
     - Concurrency(GCD)
     - Configuring UI with Code
     - Struct vs Class
